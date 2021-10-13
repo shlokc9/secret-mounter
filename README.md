@@ -47,13 +47,13 @@ Step 1: Install docker, kind and kubectl
 Step 2: Run following command to start a multi-node cluster using kind
 
 ``` {.sourceCode .bash}
-> kind create cluster --config secret-sneaker/manifests/kind/cluster-config.yaml
+> kind create cluster --config manifests/kind/cluster-config.yaml
 ```
 
 Step 3: Run following command to install the application on your k8s-cluster
 
 ``` {.sourceCode .bash}
-> kubectl apply -f secret-sneaker/manifests/application/
+> kubectl apply -f manifests/application/
 ```
 
 Step 4: Wait for pods in secret-sneaker namespace to reach 'Running' state
@@ -69,7 +69,7 @@ Terminal session 1 - Watch the secrets
 Terminal session 2 - Create a deployment with mandatory label
 
 ``` {.sourceCode .bash}
-> kubectl apply -f secret-sneaker/test/
+> kubectl apply -f test/
 ```
 You can now see a new secret in Terminal session 1. 
 
