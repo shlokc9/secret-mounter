@@ -41,8 +41,6 @@ Resultant deployment will have secrets present under path /etc/secret-sneaker-da
 
 ## How to install secret-sneaker?
 
-Prerequisites
-
 Step 1: Install docker, kind and kubectl
 
 Step 2: Run following command to start a multi-node cluster using kind
