@@ -57,7 +57,7 @@ Step 3: Run following command to install the application on your k8s-cluster
 
 Step 4: Wait for pods in secret-sneaker namespace to reach 'Running' state
 
-## How to test konfig-deployer?
+## How to test secret-sneaker?
 
 Terminal session 1 - Watch the secrets
 
