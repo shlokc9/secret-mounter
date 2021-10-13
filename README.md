@@ -78,7 +78,7 @@ Run the following command to check the secret in the above deployment
 ``` {.sourceCode .bash}
 > kubectl exec -it test-deployment-<hash-value-of-running-pod> -n default -- ls /etc/secret-sneaker-data/
 ```
-Keys mentioned in the secrets.json file should be now be visible as individual files. Contents to which are the associated values.
+Keys mentioned in the secrets.json file should be displayed as individual files. Contents to which are the associated values.
 
 Note: Make sure you are watching the same namespace where the deployment is created.
 
