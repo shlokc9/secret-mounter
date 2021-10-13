@@ -11,6 +11,7 @@ We want to enable users to mount secrets on a workload (deployment/statefulset) 
 Once the application is running, user can "sneak-in" (create) secret as a VolumeMount automatically along with a deployment creation.
 
 Just update your secrets as a key:value pair at path /mnt/data/secret-sneaker-data/secrets.json on your host machine (Create the entire path if required)
+
 And, mention mandatory label 'app=secret-sneaker' in your manifest before creating a deployment as shown in the sample deployment manifest below;
 ``` {.sourceCode .bash}
 apiVersion: apps/v1
