@@ -70,7 +70,7 @@ Terminal session 2 - Create a deployment with mandatory label
 ``` {.sourceCode .bash}
 > kubectl apply -f secret-sneaker/test/
 ```
-You can now see a new secret running in Terminal session 1. 
+You can now see a new secret in Terminal session 1. 
 
 Run the following command to check the secret in the above deployment
 
