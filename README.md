@@ -46,7 +46,7 @@ spec:
         image: busybox:latest
         name: busybox
 ```
-Resultant deployment will have secrets present under path /etc/secret-sneaker-data/
+Resultant deployment will have secrets present under path /etc/secret-sneaker-data/ in the pod
 
 ## How to install secret-sneaker?
 
