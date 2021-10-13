@@ -80,7 +80,7 @@ Run the following command to check the secret in the above deployment
 ```
 Keys mentioned in the secrets.json file should be now be visible as individual files. Contents to which are the associated values.
 
-Note: Make sure you are watching the same namespace where the configmap is created.
+Note: Make sure you are watching the same namespace where the deployment is created.
 
 Thank you :)
 
