@@ -13,4 +13,3 @@ nodes:
   extraMounts:
   - containerPath: /mnt/data/secret-sneaker-data
     hostPath: /mnt/data/secret-sneaker-data
-  
