@@ -76,7 +76,7 @@ You can now see a new secret in Terminal session 1.
 Run the following command to check the secret in the above deployment
 
 ``` {.sourceCode .bash}
-> kubectl exec -it test-deployment-<some-hash-value> -n default -- ls /etc/secret-sneaker-data/
+> kubectl exec -it test-deployment-<hash-value-of-running-pod> -n default -- ls /etc/secret-sneaker-data/
 ```
 Keys mentioned in the secrets.json file should be now be visible as individual files. Contents to which are the associated values.
 
