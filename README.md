@@ -46,7 +46,7 @@ spec:
         image: busybox:latest
         name: busybox
 ```
-Resultant deployment will have secrets present under path /etc/secret-sneaker-data/ in the pod
+Resultant deployment will have secrets present under path /etc/secret-sneaker-data/ inside the pod container
 
 ## How to install secret-sneaker?
 
@@ -79,7 +79,7 @@ Terminal session 2 - Create a deployment with mandatory label
 ``` {.sourceCode .bash}
 > kubectl apply -f test/
 ```
-You can now see a new secret in Terminal session 1. 
+You can now see a new secret in Terminal session 1. Make sure you are watching the same namespace where the deployment is created.
 
 Run the following command to check the secret in the above deployment
 
@@ -87,8 +87,6 @@ Run the following command to check the secret in the above deployment
 > kubectl exec -it test-deployment-<hash-value-of-running-pod> -n default -- ls /etc/secret-sneaker-data/
 ```
 Keys mentioned in the secrets.json file should be displayed as individual files. Contents to which are the associated values.
-
-Note: Make sure you are watching the same namespace where the deployment is created.
 
 Thank you :)
 
