@@ -50,18 +50,20 @@ Resultant deployment will have secrets present under path /etc/secret-sneaker-da
 
 ## How to install secret-sneaker?
 
-Step 1: Install docker, kind and kubectl
+Prerequisite: Install docker, kind and kubectl
+
+Step 1: Download or clone this repository
 
 Step 2: Run following command to start a multi-node cluster using kind
 
 ``` {.sourceCode .bash}
-> kind create cluster --config manifests/kind/cluster-config.yaml
+> kind create cluster --config secret-sneaker/manifests/kind/cluster-config.yaml
 ```
 
 Step 3: Run following command to install the application on your k8s-cluster
 
 ``` {.sourceCode .bash}
-> kubectl apply -f manifests/application/
+> kubectl apply -f secret-sneaker/manifests/application/
 ```
 
 Step 4: Wait for pods in secret-sneaker namespace to reach 'Running' state
@@ -77,7 +79,7 @@ Terminal session 1 - Watch the secrets
 Terminal session 2 - Create a deployment with mandatory label
 
 ``` {.sourceCode .bash}
-> kubectl apply -f test/
+> kubectl apply -f secret-sneaker/test/
 ```
 You can now see a new secret in Terminal session 1. Make sure you are watching the same namespace where the deployment is created.
 
