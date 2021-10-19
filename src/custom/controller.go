@@ -2,9 +2,8 @@ package custom
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"strings"
 	"time"
 
 	coreV1 "k8s.io/api/core/v1"
@@ -17,9 +16,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
-const SecretSneaker string = "secret-sneaker"
-const ContainerSecretPath string = "/etc/" + SecretSneaker + "-data/"
-const HostSecretMountPath string = "/mnt/data/" + SecretSneaker + "-data/"
+const SecretMounter string = "secret-mounter"
+const DefaultContainerSecretPath string = "/etc/" + SecretMounter + "-data/"
 
 type controller struct {
 	clientSet      kubernetes.Interface
@@ -60,97 +58,111 @@ func (cntrlReceiver *controller) processItem() bool {
 	if err != nil {
 		fmt.Println("Error in cache.SplitMetaNamespaceKey(): ", err.Error())
 	}
-	err = cntrlReceiver.createSecret(ns, name)
+	err = cntrlReceiver.checkDeployments(ns, name)
 	if err != nil {
-		fmt.Println("Error in cntrlReceiver.createSecrets(): ", err.Error())
+		fmt.Println("Error in cntrlReceiver.checkDeployments(): ", err.Error())
 		return false
 	}
 	return true
 }
 
-func (cntrlReceiver *controller) createSecret(ns, name string) error {
+func (cntrlReceiver *controller) checkDeployments(ns, name string) error {
 	ctx := context.Background()
 	deployment, err := cntrlReceiver.depLister.Deployments(ns).Get(name)
 	if err != nil {
 		fmt.Println("Error in cntrlReceiver.depLister.Deployments(ns).Get(): ", err.Error())
 	}
-	if val, ok := deployment.Labels["app"]; ok && val == SecretSneaker {
-		// Reading secrets from a secret file which will be mounted with the custom controller
-		secretFile := HostSecretMountPath + "secrets.json"
-		byteValue, err := ioutil.ReadFile(secretFile)
-		if err != nil {
-			fmt.Println("Error in ioutil.ReadFile(): ", err.Error())
-			fmt.Println("Safely exiting the Secret creation....")
+	// Fetching the secret information from either labels or annotations
+	labelFilter, labelFilterOk := deployment.Labels["app"]
+	annotationFilter, annotationFilterOk := deployment.Annotations["app"]
+
+	if (labelFilterOk && labelFilter == SecretMounter) || (annotationFilterOk && annotationFilter == SecretMounter) {
+		// Collecting secret information (to fetch particular key:value mounts and secret mount paths inside container)
+		var secretInfo map[string]string
+		if labelFilterOk {
+			secretInfo = deployment.Labels
+		} else if annotationFilterOk {
+			secretInfo = deployment.Annotations
+		}
+		// Listing all the secrets in the namespace matching label/annotation "app=secret-mounter"
+		secretList, err := cntrlReceiver.clientSet.CoreV1().Secrets(ns).List(ctx, metaV1.ListOptions{
+			LabelSelector: "app=" + SecretMounter,
+		})
+		if len(secretList.Items) == 0 {
+			fmt.Println("Secrets with label/annotation 'app=" + SecretMounter + "' not found")
 			return nil
 		}
-		var secrets map[string]string
-		err = json.Unmarshal(byteValue, &secrets)
 		if err != nil {
-			fmt.Println("Error in json.Unmarshal(): ", err.Error())
-			fmt.Println("Safely exiting the Secret creation....")
-			return nil
-		}
-		// Declaring the secret resource
-		var secretType coreV1.SecretType = "Opaque"
-		secret := coreV1.Secret{
-			ObjectMeta: metaV1.ObjectMeta{
-				Name:      name + "-secret",
-				Namespace: ns,
-				Labels:    map[string]string{"app": SecretSneaker},
-			},
-			Type:       secretType,
-			StringData: secrets,
-		}
-		// Creating the secret
-		_, err = cntrlReceiver.clientSet.CoreV1().Secrets(ns).Create(ctx, &secret, metaV1.CreateOptions{})
-		if err != nil {
-			cntrlReceiver.clientSet.CoreV1().Secrets(ns).Update(ctx, &secret, metaV1.UpdateOptions{})
-		}
-		fmt.Printf("Secret %s has been created using JSON file on path %s\n", name+"-secret", secretFile)
-		// Mounting the secret as a volume in deployment
-		err = cntrlReceiver.mountSecretInDeployment(ns, name, ctx)
-		if err != nil {
-			fmt.Println("Error in cntrlReceiver.mountSecretInDeployment(): ", err.Error())
+			fmt.Println("Error in cntrlReceiver.clientSet.CoreV1().Secrets(ns).List(): ", err.Error())
 			return err
+		}
+		for _, secret := range secretList.Items {
+			// Mounting all the secrets as a volume in deployment
+			err = cntrlReceiver.mountSecretInDep(ctx, ns, name, secret, secretInfo)
+			if err != nil {
+				fmt.Println("Error in cntrlReceiver.mountSecretInDep(): ", err.Error())
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func (cntrlReceiver *controller) mountSecretInDeployment(ns, name string, ctx context.Context) error {
-	// Appending the secret as a volumemount within all the containers in the PodSpec of Deployment
+func (cntrlReceiver *controller) mountSecretInDep(
+	// Fetching the latest version of deployment and modifying it
+	ctx context.Context, ns, name string, secret coreV1.Secret, secretInfo map[string]string) error {
 	deployment, err := cntrlReceiver.clientSet.AppsV1().Deployments(ns).Get(ctx, name, metaV1.GetOptions{})
 	if err != nil {
 		fmt.Println("Error in cntrlReceiver.clientSet.AppsV1().Deployments(ns).Get(): ", err.Error())
 	}
 	secretVolume := coreV1.Volume{
-		Name: name + "-secret-volume",
+		Name: secret.Name + "-secret-volume",
 		VolumeSource: coreV1.VolumeSource{
 			Secret: &coreV1.SecretVolumeSource{
-				SecretName: name + "-secret",
+				SecretName: secret.Name,
 			},
 		},
 	}
-	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, secretVolume)
 	containerVolumeMount := coreV1.VolumeMount{
-		Name:      name + "-secret-volume",
-		MountPath: ContainerSecretPath,
+		Name:      secret.Name + "-secret-volume",
+		MountPath: DefaultContainerSecretPath,
 		ReadOnly:  true,
 	}
-	for i := range deployment.Spec.Template.Spec.Containers {
-		deployment.Spec.Template.Spec.Containers[i].VolumeMounts = append(deployment.Spec.Template.Spec.Containers[i].VolumeMounts, containerVolumeMount)
-	}
 	deployment.ObjectMeta = metaV1.ObjectMeta{
-		Name:      name,
-		Namespace: ns,
-		Labels:    map[string]string{"app": SecretSneaker},
+		Name:        name,
+		Namespace:   ns,
+		Labels:      map[string]string{"app": SecretMounter},
+		Annotations: map[string]string{"app": SecretMounter},
+	}
+	// Check secretInfo (to fetch particular key in secret and secret mount paths inside container)
+	secretItemKeys, secretItemKeysOk := secretInfo[secret.Name+"-secret-keys"]
+	secretMountPath, secretMountPathOk := secretInfo[secret.Name+"-secret-path"]
+	var secretItemKeysList []string
+	if secretItemKeysOk {
+		secretItemKeysList = strings.Split(secretItemKeys, ".")
+		for _, key := range secretItemKeysList {
+			secretVolume.VolumeSource.Secret.Items = append(secretVolume.VolumeSource.Secret.Items, coreV1.KeyToPath{
+				Key:  key,
+				Path: key,
+			})
+		}
+	}
+	if secretMountPathOk {
+		containerVolumeMount.MountPath = secretMountPath
+	}
+	// Appending the secret as a volumemount within all the containers in the PodSpec of Deployment
+	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, secretVolume)
+	for i := range deployment.Spec.Template.Spec.Containers {
+		deployment.Spec.Template.Spec.Containers[i].VolumeMounts = append(
+			deployment.Spec.Template.Spec.Containers[i].VolumeMounts, containerVolumeMount)
 	}
 	// Updating the deployment so that the new secret is present in the newest pods
 	_, err = cntrlReceiver.clientSet.AppsV1().Deployments(ns).Update(ctx, deployment, metaV1.UpdateOptions{})
 	if err != nil {
 		fmt.Println("Error in cntrlReceiver.clientSet.AppsV1().Deployments(ns).Update(): ", err.Error())
+		return err
 	}
-	fmt.Printf("Deployment %s has been updated with the secret file as a VolumeMount\n", name)
+	fmt.Printf("Deployment %s has been updated with desired keys in secret %s\n", name, secret.Name)
 	return nil
 }
 
@@ -159,7 +171,7 @@ func InitController(clientSet kubernetes.Interface, depInformer appsInformers.De
 		clientSet:      clientSet,
 		depLister:      depInformer.Lister(),
 		depCacheSynced: depInformer.Informer().HasSynced,
-		workQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), SecretSneaker),
+		workQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), SecretMounter),
 	}
 	depInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{

@@ -6,7 +6,7 @@ import (
 	"time"
 	"path/filepath"
 
-	"github.com/shlokchaudhari9/secret-sneaker/custom"
+	"github.com/shlokchaudhari9/secret-mounter/custom"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/informers"

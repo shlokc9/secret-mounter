@@ -3,7 +3,8 @@ kind: Deployment
 metadata:
   labels:
     app: test-deployment
-    app: secret-sneaker
+    app: secret-mounter
+    test-secret-secret-keys: name.age
   name: test-deployment
 spec:
   replicas: 1

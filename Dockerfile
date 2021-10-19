@@ -1,8 +1,8 @@
 FROM golang:1.17
-LABEL PROJECT="secret-sneaker"
+LABEL PROJECT="secret-mounter"
 
-COPY src /go/src/secret-sneaker/
-WORKDIR /go/src/secret-sneaker/
+COPY src /go/src/secret-mounter/
+WORKDIR /go/src/secret-mounter/
 
 RUN go get -d
 
@@ -11,4 +11,4 @@ RUN go install
 RUN mkdir -p bin
 RUN go build -o bin/
 
-ENTRYPOINT ["/go/src/secret-sneaker/bin/secret-sneaker"]
+ENTRYPOINT ["/go/src/secret-mounter/bin/secret-mounter"]

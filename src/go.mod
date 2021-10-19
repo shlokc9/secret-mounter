@@ -1,4 +1,4 @@
-module github.com/shlokchaudhari9/secret-sneaker
+module github.com/shlokchaudhari9/secret-mounter
 
 go 1.17
 
