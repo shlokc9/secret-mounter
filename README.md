@@ -99,10 +99,16 @@ Step 3: Wait for pods in secret-mounter namespace to reach 'Running' state
 
 ## How to test secret-mounter?
 
+Create secret with mandatory labels/annotations
+
+``` {.sourceCode .bash}
+> kubectl apply -f secret-mounter/test/test-secret.yaml
+```
+
 Create a deployment with mandatory and optional labels/annotations
 
 ``` {.sourceCode .bash}
-> kubectl apply -f secret-mounter/test/
+> kubectl apply -f secret-mounter/test/test-deployment.yaml
 ```
 
 Run the following command to check secrets in the pod for above deployment
