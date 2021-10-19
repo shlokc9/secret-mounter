@@ -7,81 +7,76 @@ import (
 	"io/ioutil"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	coreV1 "k8s.io/api/core/v1"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	appsinformers "k8s.io/client-go/informers/apps/v1"
+	appsInformers "k8s.io/client-go/informers/apps/v1"
 	"k8s.io/client-go/kubernetes"
-	appslisters "k8s.io/client-go/listers/apps/v1"
+	appsListers "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 )
 
+const SecretSneaker string = "secret-sneaker"
+const ContainerSecretPath string = "/etc/" + SecretSneaker + "-data/"
+const HostSecretMountPath string = "/mnt/data/" + SecretSneaker + "-data/"
+
 type controller struct {
 	clientSet      kubernetes.Interface
-	depLister      appslisters.DeploymentLister
+	depLister      appsListers.DeploymentLister
 	depCacheSynced cache.InformerSynced
 	workQueue      workqueue.RateLimitingInterface
 }
 
-func (cntrlreceiver *controller) handleAdd(obj interface{}) {
-	cntrlreceiver.workQueue.Add(obj)
+func (cntrlReceiver *controller) handleAdd(obj interface{}) {
+	cntrlReceiver.workQueue.Add(obj)
 }
 
-func (cntrlreceiver *controller) Run(stopCh <-chan struct{}) {
+func (cntrlReceiver *controller) Run(stopCh <-chan struct{}) {
 	fmt.Println("Starting Custom Controller....")
-	if !cache.WaitForCacheSync(stopCh, cntrlreceiver.depCacheSynced) {
+	if !cache.WaitForCacheSync(stopCh, cntrlReceiver.depCacheSynced) {
 		fmt.Println("Waiting for the cache to be synced....")
 	}
-
-	go wait.Until(cntrlreceiver.worker, 1*time.Second, stopCh)
-
+	go wait.Until(cntrlReceiver.worker, 1*time.Second, stopCh)
 	<-stopCh
 }
 
-func (cntrlreceiver *controller) worker() {
-	for cntrlreceiver.processItem() {
+func (cntrlReceiver *controller) worker() {
+	for cntrlReceiver.processItem() {
 	}
 }
 
-func (cntrlreceiver *controller) processItem() bool {
-	item, shutdown := cntrlreceiver.workQueue.Get()
+func (cntrlReceiver *controller) processItem() bool {
+	item, shutdown := cntrlReceiver.workQueue.Get()
 	if shutdown {
 		return false
 	}
-
-	defer cntrlreceiver.workQueue.Forget(item)
-
+	defer cntrlReceiver.workQueue.Forget(item)
 	key, err := cache.MetaNamespaceKeyFunc(item)
 	if err != nil {
 		fmt.Println("Error in cache.MetaNamespaceKeyFunc(): ", err.Error())
 	}
-
 	ns, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		fmt.Println("Error in cache.SplitMetaNamespaceKey(): ", err.Error())
 	}
-
-	err = cntrlreceiver.createSecret(ns, name)
+	err = cntrlReceiver.createSecret(ns, name)
 	if err != nil {
-		fmt.Println("Error in cntrlreceiver.createSecrets(): ", err.Error())
+		fmt.Println("Error in cntrlReceiver.createSecrets(): ", err.Error())
 		return false
 	}
 	return true
 }
 
-func (cntrlreceiver *controller) createSecret(ns, name string) error {
+func (cntrlReceiver *controller) createSecret(ns, name string) error {
 	ctx := context.Background()
-
-	deployment, err := cntrlreceiver.depLister.Deployments(ns).Get(name)
+	deployment, err := cntrlReceiver.depLister.Deployments(ns).Get(name)
 	if err != nil {
-		fmt.Println("Error in cntrlreceiver.depLister.Deployments(ns).Get(): ", err.Error())
+		fmt.Println("Error in cntrlReceiver.depLister.Deployments(ns).Get(): ", err.Error())
 	}
-
-	if val, ok := deployment.Labels["app"]; ok && val == "secret-sneaker" {
-
+	if val, ok := deployment.Labels["app"]; ok && val == SecretSneaker {
 		// Reading secrets from a secret file which will be mounted with the custom controller
-		secretFile := "/mnt/data/secret-sneaker-data/secrets.json"
+		secretFile := HostSecretMountPath + "secrets.json"
 		byteValue, err := ioutil.ReadFile(secretFile)
 		if err != nil {
 			fmt.Println("Error in ioutil.ReadFile(): ", err.Error())
@@ -96,82 +91,82 @@ func (cntrlreceiver *controller) createSecret(ns, name string) error {
 			return nil
 		}
 		// Declaring the secret resource
-		var secretType corev1.SecretType = "Opaque"
-		secret := corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
+		var secretType coreV1.SecretType = "Opaque"
+		secret := coreV1.Secret{
+			ObjectMeta: metaV1.ObjectMeta{
 				Name:      name + "-secret",
 				Namespace: ns,
-				Labels:    map[string]string{"app": "secret-sneaker"},
+				Labels:    map[string]string{"app": SecretSneaker},
 			},
 			Type:       secretType,
 			StringData: secrets,
 		}
 		// Creating the secret
-		_, err = cntrlreceiver.clientSet.CoreV1().Secrets(ns).Create(ctx, &secret, metav1.CreateOptions{})
+		_, err = cntrlReceiver.clientSet.CoreV1().Secrets(ns).Create(ctx, &secret, metaV1.CreateOptions{})
 		if err != nil {
-			cntrlreceiver.clientSet.CoreV1().Secrets(ns).Update(ctx, &secret, metav1.UpdateOptions{})
+			cntrlReceiver.clientSet.CoreV1().Secrets(ns).Update(ctx, &secret, metaV1.UpdateOptions{})
 		}
 		fmt.Printf("Secret %s has been created using JSON file on path %s\n", name+"-secret", secretFile)
-
+		
 		// Mounting the secret as a volume in deployment
-		err = cntrlreceiver.mountSecretInDeployment(ns, name, ctx)
+		err = cntrlReceiver.mountSecretInDeployment(ns, name, ctx)
 		if err != nil {
-			fmt.Println("Error in cntrlreceiver.mountSecretInDeployment(): ", err.Error())
+			fmt.Println("Error in cntrlReceiver.mountSecretInDeployment(): ", err.Error())
 			return err
 		}
 	}
 	return nil
 }
 
-func (cntrlreceiver *controller) mountSecretInDeployment(ns, name string, ctx context.Context) error {
-	deployment, err := cntrlreceiver.clientSet.AppsV1().Deployments(ns).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		fmt.Println("Error in cntrlreceiver.clientSet.AppsV1().Deployments(ns).Get(): ", err.Error())
-	}
+func (cntrlReceiver *controller) mountSecretInDeployment(ns, name string, ctx context.Context) error {
 	// Appending the secret as a volumemount within all the containers in the PodSpec of Deployment
-	secretvolume := corev1.Volume{
+	deployment, err := cntrlReceiver.clientSet.AppsV1().Deployments(ns).Get(ctx, name, metaV1.GetOptions{})
+	if err != nil {
+		fmt.Println("Error in cntrlReceiver.clientSet.AppsV1().Deployments(ns).Get(): ", err.Error())
+	}
+	secretVolume := coreV1.Volume{
 		Name: name + "-secret-volume",
-		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
+		VolumeSource: coreV1.VolumeSource{
+			Secret: &coreV1.SecretVolumeSource{
 				SecretName: name + "-secret",
 			},
 		},
 	}
-	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, secretvolume)
-	containervolumemount := corev1.VolumeMount{
+	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, secretVolume)
+	containerVolumeMount := coreV1.VolumeMount{
 		Name:      name + "-secret-volume",
-		MountPath: "/etc/secret-sneaker-data/",
+		MountPath: ContainerSecretPath,
 		ReadOnly:  true,
 	}
 	for i := range deployment.Spec.Template.Spec.Containers {
-		deployment.Spec.Template.Spec.Containers[i].VolumeMounts = append(deployment.Spec.Template.Spec.Containers[i].VolumeMounts, containervolumemount)
+		deployment.Spec.Template.Spec.Containers[i].VolumeMounts = append(deployment.Spec.Template.Spec.Containers[i].VolumeMounts, containerVolumeMount)
 	}
-	deployment.ObjectMeta = metav1.ObjectMeta{
-		Name: name,
+	deployment.ObjectMeta = metaV1.ObjectMeta{
+		Name:      name,
 		Namespace: ns,
-		Labels: map[string]string{"app": "secret-sneaker"},
+		Labels:    map[string]string{"app": SecretSneaker},
 	}
 
 	// Updating the deployment so that the new secret is present in the newest pods
-	_, err = cntrlreceiver.clientSet.AppsV1().Deployments(ns).Update(ctx, deployment, metav1.UpdateOptions{})
+	_, err = cntrlReceiver.clientSet.AppsV1().Deployments(ns).Update(ctx, deployment, metaV1.UpdateOptions{})
 	if err != nil {
-		fmt.Println("Error in cntrlreceiver.clientSet.AppsV1().Deployments(ns).Update(): ", err.Error())
+		fmt.Println("Error in cntrlReceiver.clientSet.AppsV1().Deployments(ns).Update(): ", err.Error())
 	}
 	fmt.Printf("Deployment %s has been updated with the secret file as a VolumeMount\n", name)
 	return nil
 }
 
-func InitController(clientSet kubernetes.Interface, depInformer appsinformers.DeploymentInformer) *controller {
-	newcontroller := &controller{
+func InitController(clientSet kubernetes.Interface, depInformer appsInformers.DeploymentInformer) *controller {
+	newController := &controller{
 		clientSet:      clientSet,
 		depLister:      depInformer.Lister(),
 		depCacheSynced: depInformer.Informer().HasSynced,
-		workQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "secret-sneaker"),
+		workQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), SecretSneaker),
 	}
 	depInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc: newcontroller.handleAdd,
+			AddFunc: newController.handleAdd,
 		},
 	)
-	return newcontroller
+	return newController
 }
