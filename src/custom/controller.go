@@ -107,7 +107,6 @@ func (cntrlReceiver *controller) createSecret(ns, name string) error {
 			cntrlReceiver.clientSet.CoreV1().Secrets(ns).Update(ctx, &secret, metaV1.UpdateOptions{})
 		}
 		fmt.Printf("Secret %s has been created using JSON file on path %s\n", name+"-secret", secretFile)
-		
 		// Mounting the secret as a volume in deployment
 		err = cntrlReceiver.mountSecretInDeployment(ns, name, ctx)
 		if err != nil {
@@ -146,7 +145,6 @@ func (cntrlReceiver *controller) mountSecretInDeployment(ns, name string, ctx co
 		Namespace: ns,
 		Labels:    map[string]string{"app": SecretSneaker},
 	}
-
 	// Updating the deployment so that the new secret is present in the newest pods
 	_, err = cntrlReceiver.clientSet.AppsV1().Deployments(ns).Update(ctx, deployment, metaV1.UpdateOptions{})
 	if err != nil {
