@@ -111,7 +111,7 @@ Create a deployment with mandatory and optional labels/annotations
 > kubectl apply -f secret-mounter/test/test-deployment.yaml
 ```
 
-Run the following command to check secrets in the pod for above deployment
+Run the following command to check secrets in the pod container for above deployment
 
 ``` {.sourceCode .bash}
 > kubectl exec -it test-deployment-<hash-value-of-running-pod> -n default -- ls /etc/secret-mounter-data/
