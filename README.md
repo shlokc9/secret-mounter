@@ -24,7 +24,7 @@ stringData:
   designation: Software Engineer
 ```
 
-And then, create a normal deployment with the mandatory label 'app=secret-mounter' and 'secret-name=actual-secret-name' as seen below;
+Next, create a normal deployment with the mandatory label 'app=secret-mounter' and 'secret-name=actual-secret-name' as seen below;
 ``` {.sourceCode .bash}
 apiVersion: apps/v1
 kind: Deployment
