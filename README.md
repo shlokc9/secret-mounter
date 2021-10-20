@@ -118,7 +118,7 @@ Run the following command to check secrets in the pod container for above deploy
 ```
 Mentioned keys in the labels/annotations should be displayed as individual files. Contents to which will be the associated values.
 
-Make sure the deployment is created in the same namespace as the secret would be.
+Make sure the deployment is created in the same namespace as the secret would be in.
 
 Thank you :)
 
