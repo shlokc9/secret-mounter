@@ -1,31 +1,30 @@
 # secret-mounter
 
-Mount previously created secrets just using labels/annotations in a new deployment
+Mount previously created secret just using labels in a new deployment
 
 ## Motivation:
 
-We want to enable users to mount secrets on a workload (deployment/statefulset) automatically if the workload has specific label or annotation set. Users should either be able to mount the entire secret as volume or just a key:value pair. You can make rest of the decision as you want to.
+We want to enable users to mount one secret on a workload (deployment) automatically if the workload has specific label or annotation set. Users should either be able to mount the entire secret as volume or just a key:value pair.
+You can make rest of the decision as you want to.
 
 ## How it works?
 
-Once the application is running, user can mount secret(s) as a VolumeMount automatically along with a deployment creation.
+Once the application is running, user can mount a secret as a VolumeMount automatically along with a deployment creation.
 
-Just create a secret as you normally would with mandatory label/annotation 'app=secret-mounter' as shown in the sample secret below;
+Just create a secret as you normally would as shown in the sample secret below;
 ``` {.sourceCode .bash}
 apiVersion: v1
 kind: Secret
 type: Opaque
 metadata:
   name: test-secret
-  labels:
-    app: secret-mounter
 stringData:
   name: Shlok Chaudhari
   age: "23"
   designation: Software Engineer
 ```
 
-And then, create a normal deployment with the same mandatory label/annotation 'app=secret-mounter' as seen above;
+And then, create a normal deployment with the mandatory label 'app=secret-mounter' and 'secret-name=actual-secret-name' as seen below;
 ``` {.sourceCode .bash}
 apiVersion: apps/v1
 kind: Deployment
@@ -33,6 +32,7 @@ metadata:
   labels:
     app: test-deployment
     app: secret-mounter
+    secret-name: test-secret
   name: test-deployment
 spec:
   replicas: 1
@@ -51,9 +51,9 @@ spec:
         image: busybox:latest
         name: busybox
 ```
-Resultant deployment will have all keys:values present under path /etc/secret-mounter-data/ inside the pod container
+Resultant deployment will have all keys:values from secret test-secret present under path /etc/secret-mounter-data/ inside the pod container
 
-To mount specific keys:values use the optional label/annotation '(secret-name)-secret-keys=key1.key2.key3'. Refer following sample deployment YAML for usage;
+To mount specific keys:values use the optional label 'secret-keys=key1.key2.key3'. Refer following sample deployment YAML for usage;
 ``` {.sourceCode .bash}
 apiVersion: apps/v1
 kind: Deployment
@@ -61,8 +61,8 @@ metadata:
   labels:
     app: test-deployment
     app: secret-mounter
-    # (secret-name)-secret-keys: key1.key2.key3
-    test-secret-secret-keys: name.age
+    secret-name: test-secret
+    secret-keys: name.age
   name: test-deployment
 spec:
   replicas: 1
@@ -81,7 +81,7 @@ spec:
         image: busybox:latest
         name: busybox
 ```
-Resultant deployment will have mentioned keys:values present under path /etc/secret-mounter-data/ inside the pod container
+Resultant deployment will have mentioned keys:values from secret test-secret present under path /etc/secret-mounter-data/ inside the pod container
 
 ## How to install secret-mounter?
 
@@ -99,16 +99,10 @@ Step 3: Wait for pods in secret-mounter namespace to reach 'Running' state
 
 ## How to test secret-mounter?
 
-Create secret with mandatory labels/annotations
+Create secret and deployment with mentioned labels
 
 ``` {.sourceCode .bash}
-> kubectl apply -f secret-mounter/test/test-secret.yaml
-```
-
-Create a deployment with mandatory and optional labels/annotations
-
-``` {.sourceCode .bash}
-> kubectl apply -f secret-mounter/test/test-deployment.yaml
+> kubectl apply -f secret-mounter/test
 ```
 
 Run the following command to check secrets in the pod container for above deployment
@@ -116,9 +110,9 @@ Run the following command to check secrets in the pod container for above deploy
 ``` {.sourceCode .bash}
 > kubectl exec -it test-deployment-<hash-value-of-running-pod> -n default -- ls /etc/secret-mounter-data/
 ```
-Mentioned keys in the labels/annotations should be displayed as individual files. Contents to which will be the associated values.
+Required keys from the labels should be displayed as individual files. Contents to which will be the associated values.
 
-Make sure the deployment is created in the same namespace as the secret would be in.
+Make sure the deployment is created in the same namespace as the secret.
 
 Thank you :)
 
