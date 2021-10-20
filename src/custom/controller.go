@@ -19,6 +19,13 @@ import (
 const SecretMounter string = "secret-mounter"
 const DefaultContainerSecretPath string = "/etc/" + SecretMounter + "-data/"
 
+// Mandatory field
+const DeploymentLabelSecretName string = "secret-name"
+// Optional field
+const DeploymentLabelSecretKeys string = "secret-keys"
+// Secret Keys separator
+const SecretKeysSeparator string = "."
+
 type controller struct {
 	clientSet      kubernetes.Interface
 	depLister      appsListers.DeploymentLister
@@ -67,42 +74,30 @@ func (cntrlReceiver *controller) processItem() bool {
 }
 
 func (cntrlReceiver *controller) checkDeployments(ns, name string) error {
+	// Get Deployment from api-server
 	ctx := context.Background()
 	deployment, err := cntrlReceiver.depLister.Deployments(ns).Get(name)
 	if err != nil {
 		fmt.Println("Error in cntrlReceiver.depLister.Deployments(ns).Get(): ", err.Error())
 	}
-	// Fetching the secret information from either labels or annotations
-	labelFilter, labelFilterOk := deployment.Labels["app"]
-	annotationFilter, annotationFilterOk := deployment.Annotations["app"]
-
-	if (labelFilterOk && labelFilter == SecretMounter) || (annotationFilterOk && annotationFilter == SecretMounter) {
-		// Collecting secret information (to fetch particular key:value mounts and secret mount paths inside container)
-		var secretInfo map[string]string
-		if labelFilterOk {
-			secretInfo = deployment.Labels
-		} else if annotationFilterOk {
-			secretInfo = deployment.Annotations
-		}
-		// Listing all the secrets in the namespace matching label/annotation "app=secret-mounter"
-		secretList, err := cntrlReceiver.clientSet.CoreV1().Secrets(ns).List(ctx, metaV1.ListOptions{
-			LabelSelector: "app=" + SecretMounter,
-		})
-		if len(secretList.Items) == 0 {
-			fmt.Println("Secrets with label/annotation 'app=" + SecretMounter + "' not found")
-			return nil
-		}
-		if err != nil {
-			fmt.Println("Error in cntrlReceiver.clientSet.CoreV1().Secrets(ns).List(): ", err.Error())
-			return err
-		}
-		for _, secret := range secretList.Items {
-			// Mounting all the secrets as a volume in deployment
-			err = cntrlReceiver.mountSecretInDep(ctx, ns, name, secret, secretInfo)
+	// Check the deployment metadata.labels
+	depLabels := deployment.Labels
+	if labelFilter, labelFilterOk := depLabels["app"]; labelFilterOk && labelFilter == SecretMounter {
+		if secretName, secretNameFilterOk := depLabels[DeploymentLabelSecretName]; secretNameFilterOk {
+			// Get the secret from the api-server
+			secret, err := cntrlReceiver.clientSet.CoreV1().Secrets(ns).Get(ctx, secretName, metaV1.GetOptions{})
+			if err != nil {
+				fmt.Println("Error in cntrlReceiver.clientSet.CoreV1().Secrets(ns).Get(): ", err.Error())
+				return err
+			}
+			// Mount secret as a volume in deployment
+			err = cntrlReceiver.mountSecretInDep(ctx, ns, name, *secret, depLabels)
 			if err != nil {
 				fmt.Println("Error in cntrlReceiver.mountSecretInDep(): ", err.Error())
 				return err
 			}
+		} else {
+			fmt.Println("Secret name not found in the deployment metadata.labels - Skipping secret mount....")
 		}
 	}
 	return nil
@@ -110,7 +105,7 @@ func (cntrlReceiver *controller) checkDeployments(ns, name string) error {
 
 func (cntrlReceiver *controller) mountSecretInDep(
 	// Fetching the latest version of deployment and modifying it
-	ctx context.Context, ns, name string, secret coreV1.Secret, secretInfo map[string]string) error {
+	ctx context.Context, ns, name string, secret coreV1.Secret, depLabels map[string]string) error {
 	deployment, err := cntrlReceiver.clientSet.AppsV1().Deployments(ns).Get(ctx, name, metaV1.GetOptions{})
 	if err != nil {
 		fmt.Println("Error in cntrlReceiver.clientSet.AppsV1().Deployments(ns).Get(): ", err.Error())
@@ -132,23 +127,22 @@ func (cntrlReceiver *controller) mountSecretInDep(
 		Name:        name,
 		Namespace:   ns,
 		Labels:      map[string]string{"app": SecretMounter},
-		Annotations: map[string]string{"app": SecretMounter},
 	}
-	// Check secretInfo (to fetch particular key in secret and secret mount paths inside container)
-	secretItemKeys, secretItemKeysOk := secretInfo[secret.Name+"-secret-keys"]
-	secretMountPath, secretMountPathOk := secretInfo[secret.Name+"-secret-path"]
-	var secretItemKeysList []string
-	if secretItemKeysOk {
-		secretItemKeysList = strings.Split(secretItemKeys, ".")
-		for _, key := range secretItemKeysList {
+	// Get and add secret keys from deployment metadata.labels
+	if secretKeys, secretKeysOk := depLabels[DeploymentLabelSecretKeys]; secretKeysOk {
+		secretKeysList := strings.Split(secretKeys, SecretKeysSeparator)
+		for _, key := range secretKeysList {
+			_, keyCheckDataOk := secret.Data[key]
+			_, keyCheckStringDataOk := secret.StringData[key]
+			if !(keyCheckDataOk || keyCheckStringDataOk) {
+				fmt.Printf("Key %s not found in the mentioned secret %s - Skipping mount for key %s\n", key, secret.Name, key)
+				continue
+			}
 			secretVolume.VolumeSource.Secret.Items = append(secretVolume.VolumeSource.Secret.Items, coreV1.KeyToPath{
 				Key:  key,
 				Path: key,
 			})
 		}
-	}
-	if secretMountPathOk {
-		containerVolumeMount.MountPath = secretMountPath
 	}
 	// Appending the secret as a volumemount within all the containers in the PodSpec of Deployment
 	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, secretVolume)
