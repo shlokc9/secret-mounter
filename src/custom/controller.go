@@ -126,7 +126,6 @@ func (cntrlReceiver *controller) mountSecretInDep(
 	deployment.ObjectMeta = metaV1.ObjectMeta{
 		Name:        name,
 		Namespace:   ns,
-		Labels:      map[string]string{"app": SecretMounter},
 	}
 	// Get and add secret keys from deployment metadata.labels
 	if secretKeys, secretKeysOk := depLabels[DeploymentLabelSecretKeys]; secretKeysOk {
