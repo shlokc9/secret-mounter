@@ -16,15 +16,17 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
-const SecretMounter string = "secret-mounter"
-const DefaultContainerSecretPath string = "/etc/" + SecretMounter + "-data/"
+const (
+    SecretMounter string = "secret-mounter"
+    DefaultContainerSecretPath string = "/etc/" + SecretMounter + "-data/"
 
-// Mandatory field
-const DeploymentLabelSecretName string = "secret-name"
-// Optional field
-const DeploymentLabelSecretKeys string = "secret-keys"
-// Secret Keys separator
-const SecretKeysSeparator string = "."
+    // Mandatory field
+    DeploymentLabelSecretName string = "secret-name"
+    // Optional field
+    DeploymentLabelSecretKeys string = "secret-keys"
+    // Secret Keys separator
+    SecretKeysSeparator string = "."
+)
 
 type controller struct {
 	clientSet      kubernetes.Interface
