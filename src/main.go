@@ -17,7 +17,6 @@ import (
 func main() {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		// fallback to kubeconfig
 		kubeconfig := filepath.Join("/home/infracloud", ".kube", "config")
 		if envvar := os.Getenv("KUBECONFIG"); len(envvar) >0 {
 			kubeconfig = envvar
@@ -32,11 +31,8 @@ func main() {
 	if err != nil {
 		fmt.Println("Error in kubernetes.NewForConfig()", err.Error())
 	}
-
 	stopCh := make(chan struct{})
-
 	informers := informers.NewSharedInformerFactory(clientset, time.Second*30)
-
 	controller := custom.InitController(clientset, informers.Apps().V1().Deployments())
 	informers.Start(stopCh)
 	controller.Run(stopCh)

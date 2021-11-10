@@ -1,34 +1,22 @@
-apiVersion: v1
-kind: Secret
-type: Opaque
-metadata:
-  name: test-secret
-stringData:
-  name: Shlok Chaudhari
-  age: "23"
-  designation: Software Engineer
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: test-deployment
-    # Mandatory field
-    app: secret-mounter
+    app: test-deployment1
     # Mandatory field
     secret-name: test-secret
     # Optional field
     secret-keys: name.age
-  name: test-deployment
+  name: test-deployment1
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: test-deployment
+      app: test-deployment1
   template:
     metadata:
       labels:
-        app: test-deployment
+        app: test-deployment1
     spec:
       containers:
       - command:
