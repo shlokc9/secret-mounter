@@ -1,16 +1,15 @@
 package main
 
 import (
-	"os"
 	"fmt"
-	"time"
+	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/shlokchaudhari9/secret-mounter/custom"
-
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -18,7 +17,7 @@ func main() {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		kubeconfig := filepath.Join("/home/infracloud", ".kube", "config")
-		if envvar := os.Getenv("KUBECONFIG"); len(envvar) >0 {
+		if envvar := os.Getenv("KUBECONFIG"); len(envvar) > 0 {
 			kubeconfig = envvar
 		}
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
