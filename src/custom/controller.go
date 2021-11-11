@@ -2,10 +2,10 @@ package custom
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	appsV1 "k8s.io/api/apps/v1"
 	coreV1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,14 +40,14 @@ func InitController(clientSet kubernetes.Interface, depInformer appsInformers.De
 		depCacheSynced: depInformer.Informer().HasSynced,
 		workQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), SecretMounter),
 	}
-	
+
 	depInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    newController.handleAdd,
 			UpdateFunc: newController.handleUpdate,
 		},
 	)
-	
+
 	return newController
 }
 
@@ -63,12 +63,12 @@ func (cntrlReceiver *controller) handleUpdate(oldObj interface{}, newObj interfa
 
 // Runs the custom controller.
 func (cntrlReceiver *controller) Run(stopCh <-chan struct{}) {
-	fmt.Println("Starting Custom Controller....")
-	
+	log.Info("Starting Custom Controller....")
+
 	if !cache.WaitForCacheSync(stopCh, cntrlReceiver.depCacheSynced) {
-		fmt.Println("Waiting for the cache to be synced....")
+		log.Info("Waiting for the cache to be synced....")
 	}
-	
+
 	go wait.Until(cntrlReceiver.worker, 1*time.Second, stopCh)
 	<-stopCh
 }
@@ -81,7 +81,7 @@ func (cntrlReceiver *controller) worker() {
 		if shutdown {
 			break
 		}
-		
+
 		cntrlReceiver.processItem(item)
 	}
 }
@@ -89,28 +89,28 @@ func (cntrlReceiver *controller) worker() {
 // Processes the item by fetching it's name and namespace.
 func (cntrlReceiver *controller) processItem(item interface{}) bool {
 	defer cntrlReceiver.workQueue.Forget(item)
-	
+
 	key, err := cache.MetaNamespaceKeyFunc(item)
 	if err != nil {
-		fmt.Println("Error in cache.MetaNamespaceKeyFunc(): ", err.Error())
-		
+		log.Error("Error in cache.MetaNamespaceKeyFunc(): ", err.Error())
+
 		return false
 	}
-	
+
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		fmt.Println("Error in cache.SplitMetaNamespaceKey(): ", err.Error())
-		
+		log.Error("Error in cache.SplitMetaNamespaceKey(): ", err.Error())
+
 		return false
 	}
-	
+
 	err = cntrlReceiver.checkDeployments(namespace, name)
 	if err != nil {
-		fmt.Println("Error in cntrlReceiver.checkDeployments(): ", err.Error())
-		
+		log.Error("Error in cntrlReceiver.checkDeployments(): ", err.Error())
+
 		return false
 	}
-	
+
 	return true
 }
 
@@ -118,31 +118,31 @@ func (cntrlReceiver *controller) processItem(item interface{}) bool {
 // And checks for particular label secret-name in the deployment.
 func (cntrlReceiver *controller) checkDeployments(namespace, name string) error {
 	ctx := context.Background()
-	
+
 	deployment, err := cntrlReceiver.depLister.Deployments(namespace).Get(name)
 	if err != nil {
-		fmt.Println("Error in cntrlReceiver.depLister.Deployments(namespace).Get(): ", err.Error())
-		
+		log.Error("Error in cntrlReceiver.depLister.Deployments(namespace).Get(): ", err.Error())
+
 		return err
 	}
-	
+
 	depLabels := deployment.Labels
 	if secretName, secretNameFilterOk := depLabels[DeploymentLabelSecretName]; secretNameFilterOk {
 		secret, err := cntrlReceiver.fetchSecret(ctx, namespace, secretName)
 		if err != nil {
-			fmt.Println("Error in cntrlReceiver.fetchSecret(): ", err.Error())
-			
+			log.Error("Error in cntrlReceiver.fetchSecret(): ", err.Error())
+
 			return err
 		}
-		
+
 		err = cntrlReceiver.updateDeploymentWithSecret(ctx, namespace, name, deployment, secret, depLabels)
 		if err != nil {
-			fmt.Println("Error in cntrlReceiver.updateDeployment(): ", err.Error())
-			
+			log.Error("Error in cntrlReceiver.updateDeployment(): ", err.Error())
+
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -150,11 +150,11 @@ func (cntrlReceiver *controller) checkDeployments(namespace, name string) error 
 func (cntrlReceiver *controller) fetchSecret(ctx context.Context, namespace, secretName string) (coreV1.Secret, error) {
 	secret, err := cntrlReceiver.clientSet.CoreV1().Secrets(namespace).Get(ctx, secretName, metaV1.GetOptions{})
 	if err != nil {
-		fmt.Println("Error in cntrlReceiver.clientSet.CoreV1().Secrets(namespace).Get(): ", err.Error())
-		
+		log.Error("Error in cntrlReceiver.clientSet.CoreV1().Secrets(namespace).Get(): ", err.Error())
+
 		return coreV1.Secret{}, err
 	}
-	
+
 	return *secret, nil
 }
 
@@ -172,12 +172,12 @@ func (cntrlReceiver *controller) updateDeploymentWithSecret(
 
 	_, err := cntrlReceiver.clientSet.AppsV1().Deployments(namespace).Update(ctx, deployment, metaV1.UpdateOptions{})
 	if err != nil {
-		fmt.Println("Error in cntrlReceiver.clientSet.AppsV1().Deployments(namespace).Update(): ", err.Error())
-		
+		log.Error("Error in cntrlReceiver.clientSet.AppsV1().Deployments(namespace).Update(): ", err.Error())
+
 		return err
 	}
-	fmt.Printf("Deployment %s has been updated with desired keys in secret %s\n", name, secret.Name)
-	
+	log.Info("Deployment %s has been updated with desired keys in secret %s\n", name, secret.Name)
+
 	return nil
 }
 
@@ -201,20 +201,20 @@ func addSecretKeysToVolume(
 		for _, key := range secretKeysList {
 			_, keyCheckDataOk := secret.Data[key]
 			_, keyCheckStringDataOk := secret.StringData[key]
-			
+
 			if !(keyCheckDataOk || keyCheckStringDataOk) {
-				fmt.Printf("Key %s not found in the mentioned secret %s - Skipping mount for key %s\n", key, secret.Name, key)
-				
+				log.Info("Key %s not found in the mentioned secret %s - Skipping mount for key %s\n", key, secret.Name, key)
+
 				continue
 			}
-			
+
 			secretVolume.VolumeSource.Secret.Items = append(secretVolume.VolumeSource.Secret.Items, coreV1.KeyToPath{
 				Key:  key,
 				Path: key,
 			})
 		}
 	}
-	
+
 	return secretVolume
 }
 
@@ -223,7 +223,7 @@ func appendSecretAsVolume(
 	deployment *appsV1.Deployment, secret coreV1.Secret, secretVolume coreV1.Volume) *appsV1.Deployment {
 	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, secretVolume)
 	deployment = appendContainerVolumeMount(deployment, secret)
-	
+
 	return deployment
 }
 
@@ -237,6 +237,6 @@ func appendContainerVolumeMount(deployment *appsV1.Deployment, secret coreV1.Sec
 				ReadOnly:  true,
 			})
 	}
-	
+
 	return deployment
 }

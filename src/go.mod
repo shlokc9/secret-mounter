@@ -3,6 +3,7 @@ module github.com/shlokchaudhari9/secret-mounter
 go 1.17
 
 require (
+	github.com/sirupsen/logrus v1.8.1
 	k8s.io/api v0.22.2
 	k8s.io/apimachinery v0.22.2
 	k8s.io/client-go v0.22.2
