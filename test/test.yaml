@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: test-deployment1
+    # Mandatory field
+    secret-name: test-secret
+    # Optional field
+    secret-keys: name.age
+  name: test-deployment1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-deployment1
+  template:
+    metadata:
+      labels:
+        app: test-deployment1
+    spec:
+      containers:
+      - command:
+        - ping
+        - 8.8.8.8
+        image: busybox:latest
+        name: busybox
